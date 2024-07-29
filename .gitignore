@@ -1,0 +1,29 @@
+# Python 관련 파일
+__pycache__/
+*.py[cod]
+*.so
+
+# Jupyter Notebook 체크포인트
+.ipynb_checkpoints/
+
+# 환경설정 파일
+venv/
+entrypoint*
+
+# 로그 파일
+*.log
+
+# 임시 파일
+*.tmp
+*.swp
+test*
+gunicorn*
+
+# 특정 디렉토리 무시
+data/
+output/
+secret/
+prompts/
+models/
+
+secret*
