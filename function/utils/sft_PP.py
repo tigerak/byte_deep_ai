@@ -134,21 +134,21 @@ class sft_PP_run():
     def _prepare_onnx_model(self):
         # device_map = self._set_memory(33, 47)
         # max_memory={0: "24GiB", 1: "24GiB"}
-        bnb_config = BitsAndBytesConfig(
-                                load_in_8bit=True,
-                                # llm_int8_threshold=6.,
-                                llm_int8_skip_modules=["lm_head"],
-                                # load_in_8bit_fp32_cpu_offload=True
-                                )
+        # bnb_config = BitsAndBytesConfig(
+        #                         load_in_8bit=True,
+        #                         # llm_int8_threshold=6.,
+        #                         llm_int8_skip_modules=["lm_head"],
+        #                         # load_in_8bit_fp32_cpu_offload=True
+        #                         )
         cpu_model = AutoModelForCausalLM.from_pretrained(
                                             "/home/deep_ai/Project/data/output/sft/merged_model",
                                             # torch_dtype=torch.bfloat16,
-                                            torch_dtype=torch.float16,
+                                            torch_dtype=torch.half,
                                             # attn_implementation="flash_attention_2",
                                             # quantization_config=bnb_config,
                                             # max_memory=max_memory,
                                             # device_map=device_map
-                                            # device_map={"": "cpu"}
+                                            device_map={"": "cpu"}
         )
         return cpu_model
 

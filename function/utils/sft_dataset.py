@@ -19,7 +19,7 @@ class SFT_Dataset(Dataset):
                 data_list.append(row)
 
         self.tokenizer = tokenizer
-        self.prompt = Tag_Prompt()
+        self.prompt = Prompt()
         self._prompt_complete(data_list)
 
 

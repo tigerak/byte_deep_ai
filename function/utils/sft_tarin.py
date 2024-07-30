@@ -50,14 +50,14 @@ class SFT_train():
         # Train
         args = TrainingArguments(
                         num_train_epochs = 120,
-                        per_device_train_batch_size = 4,
-                        gradient_accumulation_steps = 32,
+                        per_device_train_batch_size = 2,
+                        gradient_accumulation_steps = 64,
                         gradient_checkpointing =True,
 
                         weight_decay=0.001,
                         optim=self.CFG['OPTIM'],
                         learning_rate=self.CFG['LEARNING_RATE'],
-                        warmup_steps = 4,
+                        # warmup_steps = 4,
                         lr_scheduler_type= "cosine",
                         # bf16=True, 
                         fp16=True,

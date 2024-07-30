@@ -1,3 +1,7 @@
+import os
+
+os.environ["TORCH_LOGS"] = "+dynamo"
+os.environ["TORCHDYNAMO_VERBOSE"] = "1"
 
 from time import time
 # TensorRT
@@ -14,12 +18,12 @@ from function.prompts.summ_prompt import Summary_Prompt
 class SFT_inference():
     def __init__(self, model_name):
         pp = sft_PP_run(model_name)
-        # self.inf_model = pp._prepare_inference_model()
+        self.inf_model = pp._prepare_inference_model()
         self.tokenizer = pp._prepare_tokenizer()
         # self.inf_model = AutoModelForCausalLM.from_pretrained(r'/home/deep_ai/Project/merged_model_directory',
         #                                                       local_files_only=True)
         # self.inf_model = pp._prepare_merge_model()
-        self.inf_model = pp._prepare_onnx_model()
+        # self.inf_model = pp._prepare_onnx_model()
 
     def inference(self, data):
         start_time = time()
@@ -130,28 +134,77 @@ class SFT_inference():
         print(f"병합 끝")
 
     def make_onnx(self):
+
         # Prepare Input Data
         from data.sft_test_data.sft_test import data
-        if len(data['articleDiv']) > 2500:
-            print(len(data['articleDiv']))
-            data['articleDiv']=data['articleDiv'][:2500]
+        # if len(data['articleDiv']) > 2500:
+        #     print(len(data['articleDiv']))
+        #     data['articleDiv']=data['articleDiv'][:2500]
 
-        prompt = Prompt()
-        query = prompt.make_source(article_date=data['dateDiv'],
-                                   title=data['titleDiv'],
-                                   article=data['articleDiv'])
-        input_ids = self.tokenizer.encode(query, 
-                                    return_tensors='pt', 
-                                    return_token_type_ids=False)
-        attention_mask=input_ids.ne(self.tokenizer.pad_token_id)
-        input_ids = input_ids.to('cpu')
-        attention_mask = attention_mask.to('cpu')
-        input = {'input_ids':input_ids,
-                 'attention_mask':attention_mask}
+        # prompt = Prompt()
+        # query = prompt.make_source(article_date=data['dateDiv'],
+        #                            title=data['titleDiv'],
+        #                            article=data['articleDiv'])
+        # input_ids = self.tokenizer.encode(query, 
+        #                             return_tensors='pt', 
+        #                             return_token_type_ids=False)
+        # attention_mask=input_ids.ne(self.tokenizer.pad_token_id)
+        # input_ids = input_ids.to('cuda')
+        # print(input_ids.size())
+        # attention_mask = attention_mask.to('cuda')
+        # print(attention_mask.size())
+        # input = {'input_ids':input_ids,
+        #          'attention_mask':attention_mask}
+        
+        # torch._dynamo.disable()
+
+        inputs = [
+            torch_tensorrt.Input(
+                min_shape=[1, 2200],
+                opt_shape=[1, 2700],
+                max_shape=[1, 3107],
+                dtype=torch.half,
+            )
+        ]
 
         # Prepare Model
-        traced_model = torch.jit.trace(self.inf_model, input['input_ids'])
-        torch.jit.save(traced_model, "/home/deep_ai/Project/data/output/sft/traced_solar_model.pt")
+        torch_script_module = torch.jit.script(self.inf_model)
+        # enabled_precisions={torch.float, torch.half}
+        # trt_ts_module = torch_tensorrt.compile(
+        #                                 self.inf_model, 
+        #                                 inputs=inputs, 
+        #                                 enabled_precisions=enabled_precisions
+        # )
+        torch.jit.save(torch_script_module, "torch_script_module.ts")
+        ### 해볼 것 !###
+        inputs = [torch.randn((1, 3107)).to("cuda").half()]
+        optimized_model = torch_tensorrt.compile(
+            self.inf_model,
+            ir="torch_compile",
+            inputs=inputs,
+            enabled_precisions={torch.float, torch.half},
+            debug=True,
+            workspace_size=47 << 30, # 47GB
+            min_block_size=1 << 20, # 1MB
+            torch_executed_ops={},
+        )
+        torch.jit.save(optimized_model, "optimized_model.ts")
+
+
+
+        # traced_model = torch.compile(
+        #     self.inf_model,
+        #     backend="tensorrt",
+        #     dynamic=False,
+        #     options={
+        #         "debug": True,
+        #         "enabled_precisions": {torch.float16},
+        #         "min_block_size": 1 
+        #     }
+        # )
+
+        # traced_model = torch.jit.trace(self.inf_model, input['input_ids'])
+        # torch.jit.save(traced_model, "/home/deep_ai/Project/data/output/sft/traced_solar_model.pt")
 
 
         # optimized_model = torch_tensorrt.dynamo.compile(
