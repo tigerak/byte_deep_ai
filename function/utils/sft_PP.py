@@ -21,10 +21,10 @@ from function.utils.sft_dataset import SFT_Dataset, DataCollatorForSupervisedDat
 
 
 
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
     
 class sft_PP_run():
     def __init__(self, model_name):
-        # os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
         self.CFG = model_choice[model_name]
 
         self.tokenizer = self._prepare_tokenizer()
@@ -55,7 +55,7 @@ class sft_PP_run():
         #                         )
         bnb_config = BitsAndBytesConfig(
                                 load_in_8bit=True,
-                                llm_int8_threshold=10.,
+                                llm_int8_threshold=6.,
                                 llm_int8_skip_modules=["lm_head"],
                                 # load_in_8bit_fp32_cpu_offload=True,
                                 # llm_int8_has_fp16_weight=True,
@@ -97,6 +97,7 @@ class sft_PP_run():
         self._print_parameters(peft_model)
         return peft_model, is_add_training
     
+
     def _prepare_inference_model(self):
         base_model = self._prepare_quantization_model()
         inf_model = PeftModel.from_pretrained(base_model,
@@ -107,50 +108,80 @@ class sft_PP_run():
         inf_model.eval()
         return inf_model
     
-    def _prepare_merge_model(self):
-        device_map = self._set_memory(33, 47)
+    
+    def _prepare_rt_model(self):
+        # from optimum
+        device_map = self._set_memory(27, 47)
         max_memory={0: "24GiB", 1: "24GiB"}
         bnb_config = BitsAndBytesConfig(
                                 load_in_8bit=True,
-                                llm_int8_threshold=6.,
+                                # llm_int8_threshold=6.,
                                 llm_int8_skip_modules=["lm_head"],
+                                # load_in_8bit_fp32_cpu_offload=True
                                 )
-        peft_model = AutoModelForCausalLM.from_pretrained(
-                                            "/home/deep_ai/Project/data/output/sft/merged_model",
-                                            # torch_dtype=torch.bfloat16,
-                                            torch_dtype=torch.float16,
-                                            attn_implementation="flash_attention_2",
-                                            quantization_config=bnb_config,
-                                            max_memory=max_memory,
-                                            device_map=device_map
-                                            )
-        # peft_model.generation_config.cache_implementation = "static"
-        # compiled_model = torch.compile(peft_model, mode="reduce-overhead", fullgraph=True)
-        peft_model.config.use_cache = True
-        peft_model.gradient_checkpointing_disable()
-        peft_model.eval()
-        return peft_model
-    
-    def _prepare_onnx_model(self):
-        # device_map = self._set_memory(33, 47)
-        # max_memory={0: "24GiB", 1: "24GiB"}
-        # bnb_config = BitsAndBytesConfig(
-        #                         load_in_8bit=True,
-        #                         # llm_int8_threshold=6.,
-        #                         llm_int8_skip_modules=["lm_head"],
-        #                         # load_in_8bit_fp32_cpu_offload=True
-        #                         )
-        cpu_model = AutoModelForCausalLM.from_pretrained(
-                                            "/home/deep_ai/Project/data/output/sft/merged_model",
+        merge_model = AutoModelForCausalLM.from_pretrained(
+                                            self.CFG['MERGE_MODEL'],
                                             # torch_dtype=torch.bfloat16,
                                             torch_dtype=torch.half,
                                             # attn_implementation="flash_attention_2",
                                             # quantization_config=bnb_config,
-                                            # max_memory=max_memory,
-                                            # device_map=device_map
-                                            device_map={"": "cpu"}
+                                            max_memory=max_memory,
+                                            device_map=device_map,
+                                            # device_map={"": "cpu"}
         )
-        return cpu_model
+        
+        # torch._dynamo.disable()
+
+        
+        # def forward(self, input_ids):
+        #     if input_ids.dtype != torch.long:
+        #         input_ids = input_ids.long()
+        #     return self.model(input_ids)
+
+        # Prepare Model
+        # torch_script_module = torch.jit.script(self.inf_model)
+        # enabled_precisions={torch.float, torch.half}
+        # trt_ts_module = torch_tensorrt.compile(
+        #                                 self.inf_model, 
+        #                                 inputs=inputs, 
+        #                                 enabled_precisions=enabled_precisions
+        # )
+        # torch.jit.save(torch_script_module, "torch_script_module.ts")
+        ### 해볼 것 !###
+        # inputs = [
+        #     torch_tensorrt.Input(
+        #         min_shape=[1, 2200],
+        #         opt_shape=[1, 2700],
+        #         max_shape=[1, 3107],
+        #         dtype=torch.half,
+        #     )
+        # ]
+        enabled_precisions = {torch.half}
+        compile_spec = {
+            "inputs": [
+                torch_tensorrt.Input(
+                    min_shape=(1, 2200),
+                    opt_shape=(1, 2700),
+                    max_shape=(1, 3100),
+                    dtype=torch.half,
+                )
+            ],
+            "enabled_precisions": enabled_precisions,
+            "ir": "dynamo",
+        }
+        dummy_inputs = [torch.randn((1, 3107)).to("cuda").half()]
+        optimized_model = torch_tensorrt.compile(
+            merge_model,
+            ir="torch_compile",
+            inputs=compile_spec,
+            enabled_precisions={torch.float, torch.half},
+            debug=True,
+            workspace_size=48 << 30, # 48GB
+            min_block_size=1 << 20, # 1MB
+            torch_executed_ops={},
+        )
+        print("compile 끝")
+        return optimized_model
 
     
     def _print_parameters(self, model):

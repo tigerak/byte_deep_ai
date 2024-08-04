@@ -1,7 +1,7 @@
 import os
 
-os.environ["TORCH_LOGS"] = "+dynamo"
-os.environ["TORCHDYNAMO_VERBOSE"] = "1"
+# os.environ["TORCH_LOGS"] = "+dynamo"
+# os.environ["TORCHDYNAMO_VERBOSE"] = "1"
 
 from time import time
 # TensorRT
@@ -14,16 +14,15 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from function.utils.sft_PP import sft_PP_run
 from function.prompts.prompt import Prompt
 from function.prompts.summ_prompt import Summary_Prompt
+from function.models.model_cfg import model_choice
 
 class SFT_inference():
     def __init__(self, model_name):
         pp = sft_PP_run(model_name)
-        self.inf_model = pp._prepare_inference_model()
+        self.CFG = model_choice[model_name]
+        # self.inf_model = pp._prepare_inference_model()
         self.tokenizer = pp._prepare_tokenizer()
-        # self.inf_model = AutoModelForCausalLM.from_pretrained(r'/home/deep_ai/Project/merged_model_directory',
-        #                                                       local_files_only=True)
-        # self.inf_model = pp._prepare_merge_model()
-        # self.inf_model = pp._prepare_onnx_model()
+        self.inf_model = pp._prepare_rt_model()
 
     def inference(self, data):
         start_time = time()
@@ -39,7 +38,7 @@ class SFT_inference():
                                     temperature=1.5,
                                     top_p=1.5,
                                     do_sample=True,
-                                    max_new_tokens=400,
+                                    max_new_tokens=700,
                                     # top_k=50,
                                     early_stopping=True
                                 )
@@ -50,11 +49,11 @@ class SFT_inference():
                                             skip_special_tokens=True)
                 torch.cuda.empty_cache() 
                 
-        print(result_text)
+        # print(result_text)
         end_time = time()
         processing_time = round((end_time - start_time), 3)
         processing_time = str(processing_time) + "초"
-        print(processing_time)
+        # print(processing_time)
 
         result_dict = self._output_dict(result_text, processing_time)
         return result_dict
@@ -69,8 +68,8 @@ class SFT_inference():
         tags = {
             'medium_class': "중분류(Medium Classification):",
             'major_class': "대분류(Major Classification):",
-            'sub': "sub: ",
-            'main': "### 분류 태그(Classification Tag)\n기업 태그(Company Tag):",
+            'sub': "Sub:",
+            'main': "### 분류 태그(Classification Tag)\n기업 태그(Company Tag):\nMain:",
             'summary_title': "### 요약문 제목(Summary Title):",
             'summary': "### 요약문(Summary):",
             'summary_reason': "### 요약문  구성 방법(Method of Summary Composition):"
@@ -93,7 +92,7 @@ class SFT_inference():
             'summary_count': summary_count,
             'processing_time': processing_time
         }
-
+        
         return result_dict
     
     def _data_preprocessing(self, data):
@@ -122,73 +121,65 @@ class SFT_inference():
         
         # Load PEFT model on CPU
         model = AutoPeftModelForCausalLM.from_pretrained(
-            '/home/deep_ai/Project/data/output/sft/24_07_27/solar_recovery_1st/checkpoint-280',
-            torch_dtype=torch.float16,
-            low_cpu_mem_usage=False,
+            self.CFG['PEFT_MODEL'],
+            # torch_dtype=torch.float16,
+            # low_cpu_mem_usage=False,
         )
         # Merge LoRA and base model and save
         merged_model = model.merge_and_unload()
-        merged_model.save_pretrained('/home/deep_ai/Project/data/output/sft/merged_model',
+        merged_model.save_pretrained(self.CFG['MERGE_MODEL'],
                                      safe_serialization=True, 
                                      max_shard_size="2GB")
         print(f"병합 끝")
 
-    def make_onnx(self):
+    def tensor_rt(self):
 
         # Prepare Input Data
         from data.sft_test_data.sft_test import data
-        # if len(data['articleDiv']) > 2500:
-        #     print(len(data['articleDiv']))
-        #     data['articleDiv']=data['articleDiv'][:2500]
+        if len(data['articleDiv']) > 2500:
+            print(len(data['articleDiv']))
+            data['articleDiv']=data['articleDiv'][:2500]
 
-        # prompt = Prompt()
-        # query = prompt.make_source(article_date=data['dateDiv'],
-        #                            title=data['titleDiv'],
-        #                            article=data['articleDiv'])
-        # input_ids = self.tokenizer.encode(query, 
-        #                             return_tensors='pt', 
-        #                             return_token_type_ids=False)
-        # attention_mask=input_ids.ne(self.tokenizer.pad_token_id)
-        # input_ids = input_ids.to('cuda')
-        # print(input_ids.size())
-        # attention_mask = attention_mask.to('cuda')
-        # print(attention_mask.size())
-        # input = {'input_ids':input_ids,
-        #          'attention_mask':attention_mask}
+        prompt = Prompt()
+        query = prompt.make_source(article_date=data['dateDiv'],
+                                   title=data['titleDiv'],
+                                   article=data['articleDiv'])
+        input_ids = self.tokenizer.encode(query, 
+                                    return_tensors='pt', 
+                                    return_token_type_ids=False)
+        attention_mask=input_ids.ne(self.tokenizer.pad_token_id)
+        input_ids = input_ids.to('cuda')
+        print(input_ids.size())
+        attention_mask = attention_mask.to('cuda')
+        print(attention_mask.size())
+        input = {'input_ids':input_ids,
+                 'attention_mask':attention_mask}
         
-        # torch._dynamo.disable()
+        
 
-        inputs = [
-            torch_tensorrt.Input(
-                min_shape=[1, 2200],
-                opt_shape=[1, 2700],
-                max_shape=[1, 3107],
-                dtype=torch.half,
-            )
-        ]
-
-        # Prepare Model
-        torch_script_module = torch.jit.script(self.inf_model)
-        # enabled_precisions={torch.float, torch.half}
-        # trt_ts_module = torch_tensorrt.compile(
-        #                                 self.inf_model, 
-        #                                 inputs=inputs, 
-        #                                 enabled_precisions=enabled_precisions
-        # )
-        torch.jit.save(torch_script_module, "torch_script_module.ts")
-        ### 해볼 것 !###
-        inputs = [torch.randn((1, 3107)).to("cuda").half()]
-        optimized_model = torch_tensorrt.compile(
-            self.inf_model,
-            ir="torch_compile",
-            inputs=inputs,
-            enabled_precisions={torch.float, torch.half},
-            debug=True,
-            workspace_size=47 << 30, # 47GB
-            min_block_size=1 << 20, # 1MB
-            torch_executed_ops={},
-        )
-        torch.jit.save(optimized_model, "optimized_model.ts")
+        with torch.no_grad():
+            torch.cuda.empty_cache()
+            with torch.cuda.amp.autocast():
+                start_time = time()
+                generation_args = dict(   
+                                    num_beams=6,
+                                    temperature=1.5,
+                                    top_p=1.5,
+                                    do_sample=True,
+                                    max_new_tokens=700,
+                                    # top_k=50,
+                                    early_stopping=True
+                                )
+                output = self.inf_model.generate(**input, 
+                                            **generation_args)
+                
+                result_text = self.tokenizer.decode(output[0],
+                                            skip_special_tokens=True)
+                end_time = time()
+                torch.cuda.empty_cache() 
+        print(result_text)
+        print(end_time - start_time)
+        # torch.jit.save(optimized_model, "optimized_model.ts")
 
 
 
@@ -215,5 +206,3 @@ class SFT_inference():
         #                         workspace_size=46,
         #                         min_block_size=3,
         #                         torch_executed_ops={})
-
-        print("끝")

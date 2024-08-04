@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Run training or inference mode.")
     parser.add_argument('--mode', type=str, required=True, choices=['train', 'inference'], help="Mode to run: train or inference")
-    parser.add_argument('--work', type=str, choices=['merge', 'onnx', ''], help="Additional option for work")
+    parser.add_argument('--work', type=str, choices=['merge', 'rt', ''], help="Additional option for work")
     parser.add_argument('--add', type=str, choices=['add', ''], help="Mode to train: add or none")
     parser.add_argument('--date', type=str, required=True, help="Current date in the format yy_mm_dd")
     parser.add_argument('--time', type=str, required=True, help="Current time in the format HH_MM_SS")
@@ -41,8 +41,8 @@ if __name__ == '__main__':
         sft_inf = SFT_inference(model_name)
         if args.work == 'merge':
             sft_inf.merge()
-        elif args.work == 'onnx':
-            sft_inf.make_onnx()
+        elif args.work == 'rt':
+            sft_inf.tensor_rt()
         else:
             data={}
             sft_inf.inference(data)

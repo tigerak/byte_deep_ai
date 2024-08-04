@@ -18,8 +18,8 @@ if [[ "$MODE" == "train" ]]; then
         ADD_OPTION="--add $ADD"
     fi
 elif [[ "$MODE" == "inference" ]]; then
-    read -p "Enter additional option (merge|onnx or press Enter to skip): " ADD
-    if [[ "$ADD" == "merge" || "$ADD" == "onnx" ]]; then
+    read -p "Enter additional option (merge|rt or press Enter to skip): " ADD
+    if [[ "$ADD" == "merge" || "$ADD" == "rt" ]]; then
         ADD_OPTION="--work $ADD"
     fi
 fi
