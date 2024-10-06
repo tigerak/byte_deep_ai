@@ -49,16 +49,16 @@ class SFT_train():
         #                               pin_memory=False)
         # Train
         args = TrainingArguments(
-                        num_train_epochs = 120,
-                        per_device_train_batch_size = 2,
-                        gradient_accumulation_steps = 64,
+                        num_train_epochs = 40, ### 120,
+                        per_device_train_batch_size = 1,
+                        gradient_accumulation_steps = 128,
                         gradient_checkpointing =True,
 
                         weight_decay=0.001,
                         optim=self.CFG['OPTIM'],
                         learning_rate=self.CFG['LEARNING_RATE'],
-                        # warmup_steps = 4,
-                        lr_scheduler_type= "cosine",
+                        # warmup_steps = 4, # 테스트
+                        lr_scheduler_type= "linear", # "cosine",
                         # bf16=True, 
                         fp16=True,
 
@@ -67,7 +67,7 @@ class SFT_train():
                         logging_dir=f"{self.CFG['OUTPUT_DIR']}/{date}/{time}",
 
                         save_strategy="steps",
-                        save_steps = 40,
+                        save_steps = 20,
                         save_total_limit=5,
                         save_safetensors = True,
                         output_dir = f"{self.CFG['OUTPUT_DIR']}/{date}/{time}",

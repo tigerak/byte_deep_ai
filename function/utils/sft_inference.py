@@ -129,7 +129,7 @@ class SFT_inference():
         merged_model = model.merge_and_unload()
         merged_model.save_pretrained(self.CFG['MERGE_MODEL'],
                                      safe_serialization=True, 
-                                     max_shard_size="2GB")
+                                     max_shard_size="4GB")
         print(f"병합 끝")
 
     def tensor_rt(self):
@@ -154,7 +154,6 @@ class SFT_inference():
         print(attention_mask.size())
         input = {'input_ids':input_ids,
                  'attention_mask':attention_mask}
-        
         
 
         with torch.no_grad():

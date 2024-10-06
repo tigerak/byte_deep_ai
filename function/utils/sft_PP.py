@@ -45,7 +45,7 @@ class sft_PP_run():
         return tokenizer
 
     def _prepare_quantization_model(self):
-        device_map = self._set_memory(33, 47)
+        device_map = self._set_memory(33, 47) # train: 33, title: 36???
         max_memory={0: "24GiB", 1: "24GiB"}
         # bnb_config = BitsAndBytesConfig(
         #                         load_in_4bit=True,
