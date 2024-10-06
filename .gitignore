@@ -18,6 +18,7 @@ entrypoint*
 *.swp
 test*
 gunicorn*
+rq_worker*
 
 # 특정 디렉토리 무시
 data/

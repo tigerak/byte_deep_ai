@@ -9,6 +9,7 @@ import torch
 # modules
 from utils.sft_tarin import SFT_train
 from utils.sft_inference import SFT_inference
+from utils.title.title_sft_train import Title_SFT_train
 
 def mode_train():
     pass
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     model_name = 'solar_recovery'
 
     parser = argparse.ArgumentParser(description="Run training or inference mode.")
-    parser.add_argument('--mode', type=str, required=True, choices=['train', 'inference'], help="Mode to run: train or inference")
+    parser.add_argument('--mode', type=str, required=True, choices=['train', 'inference', 'title_train', 'title_inference'], help="Mode to run: train or inference")
     parser.add_argument('--work', type=str, choices=['merge', 'rt', ''], help="Additional option for work")
     parser.add_argument('--add', type=str, choices=['add', ''], help="Mode to train: add or none")
     parser.add_argument('--date', type=str, required=True, help="Current date in the format yy_mm_dd")
@@ -37,6 +38,14 @@ if __name__ == '__main__':
             sft_train.train(date, time, add_training=True)
         else:
             sft_train.train(date, time)
+
+    if args.mode == 'title_train':
+        sft_train = Title_SFT_train(model_name)
+        if args.add == 'add':
+            sft_train.train(date, time, add_training=True)
+        else:
+            sft_train.train(date, time)
+
     elif args.mode == 'inference':
         sft_inf = SFT_inference(model_name)
         if args.work == 'merge':

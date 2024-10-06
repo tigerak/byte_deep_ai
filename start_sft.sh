@@ -1,23 +1,23 @@
 #!/bin/bash
 
 # 작업 모드 입력 받기 (train 또는 inference)
-read -p "Enter mode (train|inference): " MODE
+read -p "Enter mode (train|inference|title_train|title_inference): " MODE
 
 # 입력값 검증
-if [[ "$MODE" != "train" && "$MODE" != "inference" ]]; then
-    echo "Invalid mode. Please enter 'train' or 'inference'."
+if [[ "$MODE" != "train" && "$MODE" != "inference" && "$MODE" != "title_train" && "$MODE" != "title_inference" ]]; then
+    echo "Invalid mode. Please enter 'train' or 'inference' or title_train or title_inference."
     exit 1
 fi
 
 # 추가 옵션 설정
 ADD_OPTION=""
 
-if [[ "$MODE" == "train" ]]; then
+if [[ "$MODE" == "train" || "$MODE" == "title_train" ]]; then
     read -p "Enter add (or press Enter to skip): " ADD
     if [[ ! -z "$ADD" ]]; then
         ADD_OPTION="--add $ADD"
     fi
-elif [[ "$MODE" == "inference" ]]; then
+elif [[ "$MODE" == "inference" || "$MODE" != "title_inference" ]]; then
     read -p "Enter additional option (merge|rt or press Enter to skip): " ADD
     if [[ "$ADD" == "merge" || "$ADD" == "rt" ]]; then
         ADD_OPTION="--work $ADD"
